@@ -1,4 +1,7 @@
+import os
+from datetime import datetime
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import gym
 import time
@@ -49,6 +52,19 @@ def run_polopt_agent(env_fn,
                      save_freq=1
                      ):
 
+
+    #=====================================================================#
+    #   Prepare Minseok's custom logger                                   #
+    #=====================================================================#
+
+    epoch_logger = []
+    
+    # Create directory for saving logs and models
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.normpath(os.path.join(current_dir, '../../../'))
+    run_id = datetime.now().strftime('%Y-%m-%d-%H-%M-') + agent.__class__.__name__ + '-' + env_fn().spec.id
+    run_dir = os.path.join(root_dir, 'runs', run_id)
+    os.makedirs(run_dir, exist_ok=True)
 
     #=========================================================================#
     #  Prepare logger, seed, and environment in this process                  #
@@ -410,7 +426,7 @@ def run_polopt_agent(env_fn,
 
                 # Reset environment
                 o, r, d, c, ep_ret, ep_len, ep_cost = env.reset(), 0, False, 0, 0, 0, 0
-
+        
         # Save model
         if (epoch % save_freq == 0) or (epoch == epochs-1):
             logger.save_state({'env': env}, None)
@@ -425,6 +441,26 @@ def run_polopt_agent(env_fn,
         #=====================================================================#
         cumulative_cost = mpi_sum(cum_cost)
         cost_rate = cumulative_cost / ((epoch+1)*steps_per_epoch)
+
+
+        #=====================================================================#
+        #  Minseok's custom logger                                            #
+        #=====================================================================#
+
+        epoch_logger.append({
+            'epoch': epoch,
+            'EpRet': np.mean(logger.get_stats('EpRet')),
+            'EpCost': np.mean(logger.get_stats('EpCost')),
+            'EpLen': np.mean(logger.get_stats('EpLen')),
+        })
+
+        # Save log
+        epoch_logger_df = pd.DataFrame(epoch_logger)
+        epoch_logger_df.to_csv(os.path.join(run_dir, agent.__class__.__name__ + '.csv'), index=False)
+
+        # Save model
+        saver = tf.train.Saver()
+        saver.save(sess, os.path.join(run_dir, "agent.ckpt"))
 
         #=====================================================================#
         #  Log performance and stats                                          #

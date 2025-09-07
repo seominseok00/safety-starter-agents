@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 import gym
 import time
+import yaml
 import safe_rl.pg.trust_region as tro
 from safe_rl.pg.agents import PPOAgent, TRPOAgent, CPOAgent
 from safe_rl.pg.buffer import CPOBuffer
@@ -80,6 +81,11 @@ def run_polopt_agent(env_fn,
     env = env_fn()
 
     agent.set_logger(logger)
+
+    # Save config.yaml in runs dir
+    config_path = os.path.join(run_dir, "config.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({k: str(v) for k, v in locals().items()}, f, default_flow_style=False, allow_unicode=True)
 
     #=========================================================================#
     #  Create computation graph for actor and critic (not training routine)   #
@@ -449,9 +455,10 @@ def run_polopt_agent(env_fn,
 
         epoch_logger.append({
             'epoch': epoch,
-            'EpRet': np.mean(logger.get_stats('EpRet')),
-            'EpCost': np.mean(logger.get_stats('EpCost')),
-            'EpLen': np.mean(logger.get_stats('EpLen')),
+            'EpRet': logger.get_stats('EpRet')[0],
+            'EpCost': logger.get_stats('EpCost')[0],
+            'EpLen': logger.get_stats('EpLen')[0],
+            'lagrange': logger.get_stats('Penalty')[0] if agent.use_penalty else 0,
         })
 
         # Save log
